@@ -58,15 +58,58 @@ def create_assessment_sheet(year_semester_list,
     # Return final result
     return all_data_pd
 
-def generate_output_filename(year_semester_list):
-    output_filename = ""
+def generate_output_sheet_name(year_semester_list):
+    sheet_name = ""
     for semester in year_semester_list:
         semester = semester.replace(" ", "-")
-        if len(output_filename) > 0:
-            output_filename += "_"
-        output_filename += semester
+        if len(sheet_name) > 0:
+            sheet_name += "_"
+        sheet_name += semester
+    return sheet_name
+
+def generate_output_filename(year_semester_list):
+    output_filename = generate_output_sheet_name(year_semester_list)
     output_filename += "_ASSESSMENT.xlsx"
     return output_filename
+
+def save_assessment_sheet(year_semester_list, dataframe):
+    # Get filename
+    output_filename = generate_output_filename(year_semester_list)
+
+    # Create Excel writer
+    writer = pd.ExcelWriter(output_filename)
+
+    # Convert to Excel 
+    sheet_name = generate_output_sheet_name(year_semester_list)
+    dataframe.to_excel(writer, sheet_name=sheet_name, index=False)
+
+    # Code from: https://stackoverflow.com/questions/45985358/how-to-wrap-text-for-an-entire-column-using-pandas
+    workbook  = writer.book
+    worksheet = writer.sheets[sheet_name]
+    wrap_format = workbook.add_format({'text_wrap': True})
+
+    # Code from: https://towardsdatascience.com/how-to-auto-adjust-the-width-of-excel-columns-with-pandas-excelwriter-60cee36e175e
+    # Auto-adjust columns' width
+    # NOTE: Need XlsxWriter package!
+    MAX_COLUMN_WIDTH = 30
+    OFFSET = 2
+    for column in dataframe:
+        data_len = dataframe[column].astype(str).map(len).max() + OFFSET
+        name_len = len(column) + OFFSET
+        
+        # Column width should NOT exceed max
+        column_width = min(data_len, MAX_COLUMN_WIDTH)
+        # ...unless the name is longer
+        column_width = max(column_width, name_len)
+        
+        # Get index of column
+        col_idx = dataframe.columns.get_loc(column)    
+
+        # Set width (while also making sure wrapping is enabled)     
+        writer.sheets[sheet_name].set_column(col_idx, col_idx, column_width, wrap_format)
+
+    # Actually save Excel sheet
+    writer.save()
 
 def main():
     #year = ms.get_current_year()
@@ -86,8 +129,7 @@ def main():
                                             objectives_filename)
     
     # Save assessment file
-    output_filename = generate_output_filename(year_semester_list)
-    all_data_pd.to_excel(output_filename, index=False)
+    save_assessment_sheet(year_semester_list, all_data_pd)    
         
 if __name__ == "__main__":
     main()
