@@ -30,7 +30,7 @@ def __combine_subj_crs(dataframe):
     dataframe = dataframe.drop(['Crs'], axis = 1)
     return dataframe
 
-def create_assessment_sheet(year_semester_list,
+def create_assessment_sheets(year_semester_list,
                             subjects,
                             objectives_filename):
     # Get courses
@@ -45,18 +45,21 @@ def create_assessment_sheet(year_semester_list,
     courses_pd = __combine_subj_crs(courses_pd)
     objectives_pd = __combine_subj_crs(objectives_pd)
 
+    # Create grade dataframe
+    grade_pd = courses_pd.copy()    
+    for grade in GRADE_COLUMNS:
+        grade_pd.insert(len(grade_pd.columns), grade, 0)
+    grade_pd.insert(len(grade_pd.columns), "TOTAL", '=SUM(INDIRECT("M" & ROW() & ":T" & ROW()))')
+    grade_pd.insert(len(grade_pd.columns), "ENL REPEATED", grade_pd["ENL"])
+
     # Join two datasets
     all_data_pd = courses_pd.join(objectives_pd.set_index('Subj_Crs'), on='Subj_Crs')
     
     # Add formula for assessment outcome
     all_data_pd["Assessment Outcome"] = '=100*INDIRECT("Q" & ROW())/INDIRECT("G" & ROW())'
     
-    # Add grading columns
-    for grade in GRADE_COLUMNS:
-        all_data_pd.insert(len(all_data_pd.columns), "GRADE: " + grade, 0)
-
-    # Return final result
-    return all_data_pd
+    # Return final results
+    return all_data_pd, grade_pd
 
 def generate_output_sheet_name(year_semester_list):
     sheet_name = ""
@@ -72,26 +75,18 @@ def generate_output_filename(year_semester_list):
     output_filename += "_ASSESSMENT.xlsx"
     return output_filename
 
-def save_assessment_sheet(year_semester_list, dataframe):
-    # Get filename
-    output_filename = generate_output_filename(year_semester_list)
-
-    # Create Excel writer
-    writer = pd.ExcelWriter(output_filename)
-
-    # Convert to Excel 
-    sheet_name = generate_output_sheet_name(year_semester_list)
-    dataframe.to_excel(writer, sheet_name=sheet_name, index=False)
-
+def __auto_adjust_column_widths(writer, dataframe, sheet_name):
     # Code from: https://stackoverflow.com/questions/45985358/how-to-wrap-text-for-an-entire-column-using-pandas
-    workbook  = writer.book
-    worksheet = writer.sheets[sheet_name]
-    wrap_format = workbook.add_format({'text_wrap': True})
+    workbook  = writer.book    
+    wrap_format = workbook.add_format({
+        'text_wrap': True,
+        'align': 'center'
+    })
 
     # Code from: https://towardsdatascience.com/how-to-auto-adjust-the-width-of-excel-columns-with-pandas-excelwriter-60cee36e175e
     # Auto-adjust columns' width
     # NOTE: Need XlsxWriter package!
-    MAX_COLUMN_WIDTH = 30
+    MAX_COLUMN_WIDTH = 20
     OFFSET = 2
     for column in dataframe:
         data_len = dataframe[column].astype(str).map(len).max() + OFFSET
@@ -107,6 +102,23 @@ def save_assessment_sheet(year_semester_list, dataframe):
 
         # Set width (while also making sure wrapping is enabled)     
         writer.sheets[sheet_name].set_column(col_idx, col_idx, column_width, wrap_format)
+
+def save_assessment_sheets(year_semester_list, assess_pd, grade_pd):
+    # Get filename
+    output_filename = generate_output_filename(year_semester_list)
+
+    # Create Excel writer
+    writer = pd.ExcelWriter(output_filename)
+
+    # Convert to Excel 
+    assess_sheet_name = "Assessment" # generate_output_sheet_name(year_semester_list)
+    grade_sheet_name = "Grades"
+    assess_pd.to_excel(writer, sheet_name=assess_sheet_name, index=False)
+    grade_pd.to_excel(writer, sheet_name=grade_sheet_name, index=False)
+
+    # Auto-adjust column widths
+    __auto_adjust_column_widths(writer, assess_pd, assess_sheet_name)
+    __auto_adjust_column_widths(writer, grade_pd, grade_sheet_name)
 
     # Actually save Excel sheet
     writer.save()
@@ -124,12 +136,12 @@ def main():
     objectives_filename = "OBJECTIVES.xlsx"
 
     # Generate assessment file
-    all_data_pd = create_assessment_sheet(  year_semester_list,
-                                            subjects,
-                                            objectives_filename)
+    all_data_pd, grade_pd = create_assessment_sheets(   year_semester_list,
+                                                        subjects,
+                                                        objectives_filename)
     
     # Save assessment file
-    save_assessment_sheet(year_semester_list, all_data_pd)    
+    save_assessment_sheets(year_semester_list, all_data_pd, grade_pd)    
         
 if __name__ == "__main__":
     main()
