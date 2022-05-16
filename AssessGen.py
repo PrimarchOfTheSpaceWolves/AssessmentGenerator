@@ -133,7 +133,7 @@ def main():
         "MAT": ["115", "413"]
     }
 
-    objectives_filename = "OBJECTIVES.xlsx"
+    objectives_filename = "./OBJECTIVES/CS_OBJECTIVES.xlsx"
 
     # Generate assessment file
     all_data_pd, grade_pd = create_assessment_sheets(   year_semester_list,
