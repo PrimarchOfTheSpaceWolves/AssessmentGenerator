@@ -1,5 +1,6 @@
 import MasterSchedule as ms
 import pandas as pd
+# Need to install package xlsxwriter 
 
 COLUMNS_TO_KEEP = [
     "CRN",
@@ -15,7 +16,7 @@ COLUMNS_TO_KEEP = [
     "Instructor"    
 ]
 
-GRADE_COLUMNS = ["A", "B", "C", "D", "F", "S", "U", "I/IP/L" ]
+GRADE_COLUMNS = ["A", "B", "C", "D", "F", "S", "U", "I", "IP", "L", "EX", "W" ]
 
 def __load_objectives(filename):
     # Load as Excel
@@ -49,14 +50,14 @@ def create_assessment_sheets(year_semester_list,
     grade_pd = courses_pd.copy()    
     for grade in GRADE_COLUMNS:
         grade_pd.insert(len(grade_pd.columns), grade, 0)
-    grade_pd.insert(len(grade_pd.columns), "TOTAL", '=SUM(INDIRECT("M" & ROW() & ":T" & ROW()))')
+    grade_pd.insert(len(grade_pd.columns), "TOTAL", '=SUM(INDIRECT("M" & ROW() & ":X" & ROW()))')
     grade_pd.insert(len(grade_pd.columns), "ENL REPEATED", grade_pd["ENL"])
 
     # Join two datasets
     all_data_pd = courses_pd.join(objectives_pd.set_index('Subj_Crs'), on='Subj_Crs')
     
     # Add formula for assessment outcome
-    all_data_pd["Assessment Outcome"] = '=100*INDIRECT("Q" & ROW())/INDIRECT("G" & ROW())'
+    all_data_pd["Assessment Outcome"] = '=100*INDIRECT("Q" & ROW())/(INDIRECT("G" & ROW()) - INDIRECT("R" & ROW()))'
     
     # Return final results
     return all_data_pd, grade_pd
