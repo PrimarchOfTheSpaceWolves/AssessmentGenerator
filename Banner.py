@@ -4,10 +4,38 @@ import urllib.request as ul
 from bs4 import BeautifulSoup as soup
 import numpy as np
 import pandas as pd
-import MasterSchedule as ms
 import requests
 
-def __authenticate_session(username, password):
+SEMESTERS = {
+    "Fall" : ("09", "12"),
+    "Spring" : ("01", "05"),
+    "Summer" : ("06", "08")
+}
+
+GRADE_COLUMNS = ["A", "B", "C", "D", "F", "S", "U", "I", "IP", "L", "EX", "W" ]
+
+def get_term_code(year, semester):
+    sem_num = SEMESTERS[semester][0]
+    term_in = str(year) + sem_num
+    return term_in
+
+def get_current_year():
+    current_year = int(datetime.datetime.now().date().strftime("%Y"))
+    return current_year      
+
+def get_current_semester():
+    current_month = int(datetime.datetime.now().date().strftime("%m"))
+    for sem in SEMESTERS:
+        month_range = SEMESTERS[sem]
+        start_month = int(month_range[0])
+        end_month = int(month_range[1])
+        if start_month <= current_month <= end_month:
+            return sem
+
+    raise ValueError("Unable to find valid semester!") 
+
+# Returns requests.Session if valid; None otherwise.
+def get_authenticated_banner_session(username, password):
     
     s = requests.Session() 
     
@@ -20,10 +48,12 @@ def __authenticate_session(username, password):
     x = s.post(url)
     x = s.post(url, data = data)
     
-    # TODO: Deal with response and see if we need to re-authenticate
-    return s
+    if "Authorization Failure" in x.text:
+        return None
+    else:    
+        return s
     
-def __get_column_data(rowdata, header=False):
+def __parse_html_table_row(rowdata, header=False):
     pagesoup = soup(rowdata, "html.parser")
     if header:
         delim = 'th'
@@ -35,26 +65,12 @@ def __get_column_data(rowdata, header=False):
     for item in itemlocator:        
         data_elems.append(item.text)
         
-    return data_elems        
-    
-def __get_course_grades(session, year, semester, crn):
-    
-    term = ms.get_term_code(year, semester)
+    return data_elems    
 
-    url="https://banner.sunypoly.edu/pls/prod/bwlkfcwl.P_FacClaListSum"
-    
-    data = {
-        "term" : term,
-        "crn" : str(crn)
-    }
-    
-    x = session.post(url, data = data)
-    htmldata = x.text
-    #print(htmldata)
-    
+def parse_banner_html_table_data(htmltext, tablename):
     try:         
         # Find the text "Summary Class List"
-        second_half = str(htmldata).split("Summary Class List")[1]
+        second_half = str(htmltext).split(tablename)[1]
         second_half = second_half.split("</table>")[0]
 
         # Find each student
@@ -69,18 +85,19 @@ def __get_course_grades(session, year, semester, crn):
             stritem = str(item)
             #print("** " + stritem + "**")
                                     
-            if "<tr>" in stritem:
-                # New row to process
-                if first_row:
-                    column_names = __get_column_data(stritem, header=True)                          
-                else:
-                    data_cells = __get_column_data(stritem, header=False)                                 
-                    all_data.append(data_cells[:-1])
-                                                
-                first_row = False            
+            #if "<tr>" in stritem:
+            # New row to process
+            if first_row:
+                column_names = __parse_html_table_row(stritem, header=True)                          
+            else:
+                data_cells = __parse_html_table_row(stritem, header=False)                                                       
+                all_data.append(data_cells[:len(column_names)])
+                                            
+            first_row = False            
             
-        all_data_array = np.array(all_data)
-        
+        # Convert all data to strings
+        all_data_array = np.array(all_data).astype(str)
+                
         # Convert to a Pandas dataframe
         all_data_pd = pd.DataFrame(all_data_array, columns=column_names).astype(str)
             
@@ -89,12 +106,27 @@ def __get_course_grades(session, year, semester, crn):
 
         # Remove NANs
         all_data_pd.fillna('',inplace=True)
-    except:
+    except:        
         all_data_pd = None
         
+    return all_data_pd        
+    
+def get_banner_course_grades(session, year, semester, crn):
+    
+    term = get_term_code(year, semester)
+
+    url="https://banner.sunypoly.edu/pls/prod/bwlkfcwl.P_FacClaListSum"    
+    data = {
+        "term" : term,
+        "crn" : str(crn)
+    }    
+    x = session.post(url, data = data)
+    
+    all_data_pd = parse_banner_html_table_data(x.text, "Summary Class List")
+            
     return all_data_pd    
 
-def __summarize_grades(year, semester, crn, grades):
+def summarize_grade_counts(year, semester, crn, grades):
     if grades is not None:
         # Remove plus and minuses
         grades['Final'].replace("\+", "", inplace=True, regex=True)
@@ -105,7 +137,7 @@ def __summarize_grades(year, semester, crn, grades):
         summary = summary.to_frame()
         
         # Join with unique grade possibilities
-        unique_grades = pd.DataFrame(ms.GRADE_COLUMNS, columns=["LETTER"])    
+        unique_grades = pd.DataFrame(GRADE_COLUMNS, columns=["LETTER"])    
         unique_grades = unique_grades.set_index("LETTER")        
         summary = unique_grades.join(summary, how="left")
         
@@ -113,7 +145,7 @@ def __summarize_grades(year, semester, crn, grades):
         summary.fillna(0,inplace=True)
     else:
         # Make dummy table with empty values
-        unique_grades = pd.DataFrame(ms.GRADE_COLUMNS, columns=["LETTER"])    
+        unique_grades = pd.DataFrame(GRADE_COLUMNS, columns=["LETTER"])    
         unique_grades = unique_grades.set_index("LETTER")    
         summary = unique_grades 
         summary['Final'] = 0               
@@ -141,12 +173,12 @@ def get_grades(username, password, grade_pd):
     grade_pd.reset_index(drop=True, inplace=True)  
     
     # Insert initial grade columns
-    for grade in ms.GRADE_COLUMNS:
+    for grade in GRADE_COLUMNS:
         grade_pd.insert(len(grade_pd.columns), grade, 0)
         grade_pd[grade] = grade_pd[grade].astype(int)         
     
     # Get session
-    s = __authenticate_session(username, password)
+    s = get_authenticated_banner_session(username, password)
     
     # Get years, semesters, and crns
     all_years = grade_pd["Year"]
@@ -162,11 +194,11 @@ def get_grades(username, password, grade_pd):
                 
         # Get grades
         # TODO: Async calls?
-        grades = __get_course_grades(s, year, semester, crn)
-        grades = __summarize_grades(year, semester, crn, grades)
+        grades = get_banner_course_grades(s, year, semester, crn)
+        grades = summarize_grade_counts(year, semester, crn, grades)
                 
         # Insert values
-        for col_name in ms.GRADE_COLUMNS:
+        for col_name in GRADE_COLUMNS:
             grade_pd.at[i, col_name] = int(grades[col_name].iloc[0])
         
         #print(grade_pd.to_string())          
@@ -174,12 +206,15 @@ def get_grades(username, password, grade_pd):
     grade_pd.insert(len(grade_pd.columns), "TOTAL", '=SUM(INDIRECT("M" & ROW() & ":X" & ROW()))')
     grade_pd.insert(len(grade_pd.columns), "ENL REPEATED", grade_pd["ENL"])
     
-    #print(grade_pd)
+    # Reset index again
+    grade_pd.reset_index(drop=True, inplace=True)  
     
     return grade_pd
         
 def main():
-    pass   
+    sess = get_authenticated_banner_session(username="realemj", password="dfdf")   
+    if sess is None:
+        print("HELP!")
         
 if __name__ == "__main__":
     main()
