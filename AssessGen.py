@@ -1,4 +1,5 @@
 import MasterSchedule as ms
+import Banner as bn
 import pandas as pd
 # Need to install package xlsxwriter 
 
@@ -16,8 +17,6 @@ COLUMNS_TO_KEEP = [
     "Instructor"    
 ]
 
-GRADE_COLUMNS = ["A", "B", "C", "D", "F", "S", "U", "I", "IP", "L", "EX", "W" ]
-
 def __load_objectives(filename):
     # Load as Excel
     assess_goals = pd.read_excel(filename)
@@ -33,7 +32,9 @@ def __combine_subj_crs(dataframe):
 
 def create_assessment_sheets(year_semester_list,
                             subjects,
-                            objectives_filename):
+                            objectives_filename,
+                            username,
+                            password):
     # Get courses
     courses_pd = ms.get_courses(  year_semester_list,
                                 subjects,                 
@@ -47,17 +48,22 @@ def create_assessment_sheets(year_semester_list,
     objectives_pd = __combine_subj_crs(objectives_pd)
 
     # Create grade dataframe
-    grade_pd = courses_pd.copy()    
-    for grade in GRADE_COLUMNS:
-        grade_pd.insert(len(grade_pd.columns), grade, 0)
-    grade_pd.insert(len(grade_pd.columns), "TOTAL", '=SUM(INDIRECT("M" & ROW() & ":X" & ROW()))')
-    grade_pd.insert(len(grade_pd.columns), "ENL REPEATED", grade_pd["ENL"])
-
+    grade_pd = courses_pd.copy()
+    grade_pd = bn.get_grades(username=username, password=password, grade_pd=grade_pd)
+    
+    # Insert W/I/IP/EX values
+    w_col_name = "W, I, IP, EX Count"
+    courses_pd[w_col_name] = grade_pd[["W","I","IP","EX"]].sum(axis=1)
+    
     # Join two datasets
     all_data_pd = courses_pd.join(objectives_pd.set_index('Subj_Crs'), on='Subj_Crs')
     
     # Add formula for assessment outcome
     all_data_pd["Assessment Outcome"] = '=100*INDIRECT("Q" & ROW())/(INDIRECT("G" & ROW()) - INDIRECT("R" & ROW()))'
+    
+    # Mov W/I/IP/EX column
+    w_col = all_data_pd.pop(w_col_name)
+    all_data_pd.insert(17, w_col_name, w_col)
     
     # Return final results
     return all_data_pd, grade_pd
@@ -128,6 +134,9 @@ def main():
     #year = ms.get_current_year()
     #sem = ms.get_current_semester()
     
+    username="realemj"
+    password=""
+    
     year_semester_list = [ "2021 Fall", "2022 Spring"]
     subjects = {
         "CS": ["108", "220", "240", "249", "330", "350", "370", "498"],
@@ -139,7 +148,9 @@ def main():
     # Generate assessment file
     all_data_pd, grade_pd = create_assessment_sheets(   year_semester_list,
                                                         subjects,
-                                                        objectives_filename)
+                                                        objectives_filename,
+                                                        username,
+                                                        password)
     
     # Save assessment file
     save_assessment_sheets(year_semester_list, all_data_pd, grade_pd)    

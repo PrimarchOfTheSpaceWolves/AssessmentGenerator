@@ -1,0 +1,185 @@
+import datetime
+from enum import unique
+import urllib.request as ul
+from bs4 import BeautifulSoup as soup
+import numpy as np
+import pandas as pd
+import MasterSchedule as ms
+import requests
+
+def __authenticate_session(username, password):
+    
+    s = requests.Session() 
+    
+    url = 'https://banner.sunypoly.edu/pls/prod/twbkwbis.P_ValLogin'
+    data =  {
+        'sid': username,
+        'PIN' : password
+    }
+
+    x = s.post(url)
+    x = s.post(url, data = data)
+    
+    # TODO: Deal with response and see if we need to re-authenticate
+    return s
+    
+def __get_column_data(rowdata, header=False):
+    pagesoup = soup(rowdata, "html.parser")
+    if header:
+        delim = 'th'
+    else:
+        delim = 'td'
+    itemlocator = pagesoup.findAll(delim)
+    
+    data_elems = []
+    for item in itemlocator:        
+        data_elems.append(item.text)
+        
+    return data_elems        
+    
+def __get_course_grades(session, year, semester, crn):
+    
+    term = ms.get_term_code(year, semester)
+
+    url="https://banner.sunypoly.edu/pls/prod/bwlkfcwl.P_FacClaListSum"
+    
+    data = {
+        "term" : term,
+        "crn" : str(crn)
+    }
+    
+    x = session.post(url, data = data)
+    htmldata = x.text
+    #print(htmldata)
+    
+    try:         
+        # Find the text "Summary Class List"
+        second_half = str(htmldata).split("Summary Class List")[1]
+        second_half = second_half.split("</table>")[0]
+
+        # Find each student
+        pagesoup = soup(second_half, "html.parser")
+        itemlocator = pagesoup.findAll('tr')
+
+        column_names = []    
+        all_data = []
+        first_row = True    
+                
+        for item in itemlocator:
+            stritem = str(item)
+            #print("** " + stritem + "**")
+                                    
+            if "<tr>" in stritem:
+                # New row to process
+                if first_row:
+                    column_names = __get_column_data(stritem, header=True)                          
+                else:
+                    data_cells = __get_column_data(stritem, header=False)                                 
+                    all_data.append(data_cells[:-1])
+                                                
+                first_row = False            
+            
+        all_data_array = np.array(all_data)
+        
+        # Convert to a Pandas dataframe
+        all_data_pd = pd.DataFrame(all_data_array, columns=column_names).astype(str)
+            
+        # Clean up html &amp; text
+        all_data_pd.replace("&amp;", "&", inplace=True, regex=True)
+
+        # Remove NANs
+        all_data_pd.fillna('',inplace=True)
+    except:
+        all_data_pd = None
+        
+    return all_data_pd    
+
+def __summarize_grades(year, semester, crn, grades):
+    if grades is not None:
+        # Remove plus and minuses
+        grades['Final'].replace("\+", "", inplace=True, regex=True)
+        grades['Final'].replace("\-", "", inplace=True, regex=True)
+        
+        # Get unique counts
+        summary = grades['Final'].value_counts()
+        summary = summary.to_frame()
+        
+        # Join with unique grade possibilities
+        unique_grades = pd.DataFrame(ms.GRADE_COLUMNS, columns=["LETTER"])    
+        unique_grades = unique_grades.set_index("LETTER")        
+        summary = unique_grades.join(summary, how="left")
+        
+        # Remove NANs
+        summary.fillna(0,inplace=True)
+    else:
+        # Make dummy table with empty values
+        unique_grades = pd.DataFrame(ms.GRADE_COLUMNS, columns=["LETTER"])    
+        unique_grades = unique_grades.set_index("LETTER")    
+        summary = unique_grades 
+        summary['Final'] = 0               
+    
+    # Change to type int
+    summary['Final'] = summary['Final'].astype(int)
+    
+    # Transpose to turn into row
+    summary = summary.T
+    
+    # Add year, semester, and crn columns
+    summary.insert(0, "Year", year)
+    summary.insert(1, "Semester", semester)
+    summary.insert(2, "CRN", crn)    
+    
+    # Reset index
+    summary.reset_index(drop=True, inplace=True)                
+    #print(summary)
+    
+    return summary
+    
+def get_grades(username, password, grade_pd):
+    
+    # Reset index
+    grade_pd.reset_index(drop=True, inplace=True)  
+    
+    # Insert initial grade columns
+    for grade in ms.GRADE_COLUMNS:
+        grade_pd.insert(len(grade_pd.columns), grade, 0)
+        grade_pd[grade] = grade_pd[grade].astype(int)         
+    
+    # Get session
+    s = __authenticate_session(username, password)
+    
+    # Get years, semesters, and crns
+    all_years = grade_pd["Year"]
+    all_semesters = grade_pd["Semester"]
+    all_crns = grade_pd["CRN"]
+    
+    # For each row...
+    for i in range(len(all_years)):
+        # Get one row
+        year = all_years.iloc[i]
+        semester = all_semesters.iloc[i]
+        crn = all_crns.iloc[i]
+                
+        # Get grades
+        # TODO: Async calls?
+        grades = __get_course_grades(s, year, semester, crn)
+        grades = __summarize_grades(year, semester, crn, grades)
+                
+        # Insert values
+        for col_name in ms.GRADE_COLUMNS:
+            grade_pd.at[i, col_name] = int(grades[col_name].iloc[0])
+        
+        #print(grade_pd.to_string())          
+    
+    grade_pd.insert(len(grade_pd.columns), "TOTAL", '=SUM(INDIRECT("M" & ROW() & ":X" & ROW()))')
+    grade_pd.insert(len(grade_pd.columns), "ENL REPEATED", grade_pd["ENL"])
+    
+    #print(grade_pd)
+    
+    return grade_pd
+        
+def main():
+    pass   
+        
+if __name__ == "__main__":
+    main()
