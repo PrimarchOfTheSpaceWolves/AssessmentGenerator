@@ -1,6 +1,4 @@
 import datetime
-from enum import unique
-import urllib.request as ul
 from bs4 import BeautifulSoup as soup
 import numpy as np
 import pandas as pd

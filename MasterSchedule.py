@@ -1,20 +1,6 @@
-import datetime
-import urllib.request as ul
-from bs4 import BeautifulSoup as soup
-import numpy as np
 import pandas as pd
 import requests
 import Banner as bn
-
-'''
-# TODO: Revamp using requests library and soup subparsing
-def __split_columns(data, begin, to_remove):
-    for t in to_remove:
-        data = data.replace(t, "")            
-    tokens = data.split(begin)      
-    tokens = tokens[1:]      
-    return tokens 
-'''
 
 def get_subject(year, semester, subj, 
                 specific_course_nums=None,
