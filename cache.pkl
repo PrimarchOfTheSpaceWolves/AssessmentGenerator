@@ -1,22 +1,42 @@
 (dp0
-VobjFile
+VobjFile\u000d
 p1
-VI:/REALE/SUNYIT/Tools/AssessmentGenerator/OBJECTIVES/CS_OBJECTIVES.xlsx
+VI:/REALE/SUNYIT/Tools/AssessmentGenerator/OBJECTIVES/CS_OBJECTIVES.xlsx\u000d
 p2
-sVoutputFolder
+sVoutputFolder\u000d
 p3
-VI:/REALE/SUNYIT/Tools/AssessmentGenerator
+VI:/REALE/SUNYIT/Tools/AssessmentGenerator\u000d
 p4
-sVusername
+sVusername\u000d
 p5
-Vrealemj
+Vrealemj\u000d
 p6
-sVstartSemester
+sVstartSemester\u000d
 p7
-V2021 Fall
+V2021 Fall\u000d
 p8
-sVendSemester
+sVendSemester\u000d
 p9
-V2022 Spring
+V2022 Spring\u000d
 p10
+sVobjFile
+p11
+VI:/REALE/SUNYIT/Tools/AssessmentGenerator/OBJECTIVES/CS_OBJECTIVES.xlsx
+p12
+sVoutputFolder
+p13
+VI:/REALE/SUNYIT/Tools/AssessmentGenerator
+p14
+sVusername
+p15
+Vrealemj
+p16
+sVstartSemester
+p17
+V2021 Fall
+p18
+sVendSemester
+p19
+V2022 Spring
+p20
 s.
