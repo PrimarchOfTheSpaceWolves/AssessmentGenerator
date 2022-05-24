@@ -10,6 +10,9 @@ SEMESTERS = {
     "Summer" : ("06", "08")
 }
 
+GRADE_COLUMNS = ["A", "B", "C", "D", "F", "S", "U", "I", "IP", "L", "EX", "W" ]
+
+# TODO: Revamp using requests library and soup subparsing
 def __split_columns(data, begin, to_remove):
     for t in to_remove:
         data = data.replace(t, "")            
@@ -17,13 +20,17 @@ def __split_columns(data, begin, to_remove):
     tokens = tokens[1:]      
     return tokens 
 
+def get_term_code(year, semester):
+    sem_num = SEMESTERS[semester][0]
+    term_in = str(year) + sem_num
+    return term_in
+
 def get_subject(year, semester, subj, 
                 specific_course_nums=None,
                 columns_to_keep=None,
                 add_semester_year_cols=False):
-    
-    sem_num = SEMESTERS[semester][0]
-    term_in = str(year) + sem_num
+        
+    term_in = get_term_code(year, semester)
 
     base_url="https://banner.sunypoly.edu/pls/prod/swssschd.P_ShowSchd" 
     base_url += "?"
