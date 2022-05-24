@@ -1,3 +1,4 @@
 *.xlsx
 __pycache__
 !OBJECTIVES/*.xlsx
+*.pkl
