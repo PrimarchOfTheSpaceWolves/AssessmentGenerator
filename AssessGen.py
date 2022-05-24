@@ -31,18 +31,43 @@ def __combine_subj_crs(dataframe):
     dataframe = dataframe.drop(['Crs'], axis = 1)
     return dataframe
 
-def create_assessment_sheets(year_semester_list,
-                            subjects,
+def extract_unique_courses(objectives_pd):
+    # Code snippet from: https://stackoverflow.com/questions/35268817/unique-combinations-of-values-in-selected-columns-in-pandas-data-frame-and-count
+    chosen_cols = ['Subj','Crs']
+    unique_courses = objectives_pd.groupby(chosen_cols).size().reset_index().rename(columns={0:'count'})
+    unique_courses.sort_values(chosen_cols, axis=0, inplace=True, ignore_index=True)
+    #print(unique_courses)
+    
+    subjects= {}
+    
+    for i in range(len(unique_courses)):
+        subj = str(unique_courses["Subj"].iloc[i])
+        crn = str(unique_courses["Crs"].iloc[i])
+        
+        if subj in subjects:
+            subjects[subj].append(crn)
+        else:
+            subjects[subj] = [crn]
+            
+    #print(subjects)
+            
+    return subjects
+    
+def create_assessment_sheets(year_semester_list,                            
                             objectives_filename,
                             username,
                             password):
-    # Get courses
-    courses_pd = ms.get_courses(  year_semester_list,
-                                subjects,                 
-                                columns_to_keep=COLUMNS_TO_KEEP)
     
     # Load up objectives
     objectives_pd = __load_objectives(objectives_filename)
+    
+    # Get unique courses from objectives
+    subjects = extract_unique_courses(objectives_pd)
+
+    # Get courses
+    courses_pd = ms.get_courses(    year_semester_list,
+                                    subjects,                 
+                                    columns_to_keep=COLUMNS_TO_KEEP)       
 
     # Create combined Subject + Course Number for key
     courses_pd = __combine_subj_crs(courses_pd)
@@ -111,16 +136,15 @@ def main():
     password=""
     
     year_semester_list = [ "2021 Fall", "2022 Spring"]
-    subjects = {
-        "CS": ["108", "220", "240", "249", "330", "350", "370", "498"],
-        "MAT": ["115", "413"]
-    }
+    #subjects = {
+    #    "CS": ["108", "220", "240", "249", "330", "350", "370", "498"],
+    #    "MAT": ["115", "413"]
+    #}
 
     objectives_filename = "./OBJECTIVES/CS_OBJECTIVES.xlsx"
 
     # Generate assessment file
-    all_data_pd, grade_pd = create_assessment_sheets(   year_semester_list,
-                                                        subjects,
+    all_data_pd, grade_pd = create_assessment_sheets(   year_semester_list,                                                        
                                                         objectives_filename,
                                                         username,
                                                         password)
