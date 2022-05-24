@@ -178,6 +178,10 @@ def get_grades(username, password, grade_pd):
     # Get session
     s = get_authenticated_banner_session(username, password)
     
+    # Did we succeed?
+    if s is None:
+        raise ValueError("ERROR: Invalid credentials!")
+    
     # Get years, semesters, and crns
     all_years = grade_pd["Year"]
     all_semesters = grade_pd["Semester"]
