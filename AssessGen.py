@@ -56,13 +56,14 @@ def runAssessment(year_semester_list, objectives_filename, username, password):
         logToGUI("Starting assessment...") 
         
         # Generate assessment file
-        all_data_pd, grade_pd, summary_pd = Assess.create_assessment_sheets(    year_semester_list,                                                        
+        all_data_pd, metrics_pd, grade_pd, summary_pd = Assess.create_assessment_sheets(    
+                                                                                year_semester_list,                                                        
                                                                                 objectives_filename,
                                                                                 username,
                                                                                 password)
         
         # Save assessment file
-        output_filename = Assess.save_assessment_sheets(year_semester_list, all_data_pd, grade_pd, summary_pd)   
+        output_filename = Assess.save_assessment_sheets(year_semester_list, all_data_pd, metrics_pd, grade_pd, summary_pd)   
         
         logToGUI("Saved output file: " + output_filename)
         logToGUI("Assessment complete!")

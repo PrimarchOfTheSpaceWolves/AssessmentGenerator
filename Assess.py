@@ -183,7 +183,17 @@ def create_assessment_sheets(year_semester_list,
     # Get courses
     courses_pd = ms.get_courses(    year_semester_list,
                                     subjects,                 
-                                    columns_to_keep=COLUMNS_TO_KEEP)       
+                                    columns_to_keep=COLUMNS_TO_KEEP) 
+    
+    # Grab copy of objectives
+    metrics_pd = objectives_pd.copy() 
+    
+    # Prepare metrics dataframe    
+    metrics_pd = __combine_subj_crs(metrics_pd)
+    metrics_pd.drop(columns=['Indirect Measure Used', 'Count Meeting Outcome', 
+                             'Assessment Outcome', 'Action Taken', 'Additional Comments and Notes'], 
+                    inplace=True)
+    metrics_pd=metrics_pd[metrics_pd.columns[[1,0,2,3]]] # Changing column order
 
     # Create combined Subject + Course Number for key
     courses_pd = __combine_subj_crs(courses_pd)
@@ -212,9 +222,17 @@ def create_assessment_sheets(year_semester_list,
     
     # Create summary dataframe
     summary_pd = create_summary_dataframe(year_semester_list, all_data_pd, objectives_pd)
-        
+    
+    # Clean out the Student Learning and Direct Measure columns, since they are on a separate sheet now
+    all_cols = all_data_pd.columns.tolist()
+    all_cols_data = all_cols[:]
+    all_cols_data.remove('Student learning Outcome/Performance Indicator')
+    all_cols_data.remove('Direct Measure Used')    
+    all_data_pd = pd.DataFrame(all_data_pd[all_cols_data], columns=all_cols)    
+    all_data_pd.fillna('',inplace=True)
+            
     # Return final results
-    return all_data_pd, grade_pd, summary_pd
+    return all_data_pd, metrics_pd, grade_pd, summary_pd
 
 def generate_output_sheet_name(year_semester_list):
     sheet_name = ""
@@ -230,7 +248,7 @@ def generate_output_filename(year_semester_list):
     output_filename += "_ASSESSMENT.xlsx"
     return output_filename
 
-def save_assessment_sheets(year_semester_list, assess_pd, grade_pd, summary_pd):
+def save_assessment_sheets(year_semester_list, assess_pd, metrics_pd, grade_pd, summary_pd):
     # Get filename
     output_filename = generate_output_filename(year_semester_list)
 
@@ -239,14 +257,17 @@ def save_assessment_sheets(year_semester_list, assess_pd, grade_pd, summary_pd):
 
     # Convert to Excel 
     assess_sheet_name = "Assessment" # generate_output_sheet_name(year_semester_list)
+    metrics_sheet_name = "Metrics"
     grade_sheet_name = "Grades"
     summary_sheet_name = "Summary"
     assess_pd.to_excel(writer, sheet_name=assess_sheet_name, index=False)
+    metrics_pd.to_excel(writer, sheet_name=metrics_sheet_name, index=False)
     grade_pd.to_excel(writer, sheet_name=grade_sheet_name, index=False)
     summary_pd.to_excel(writer, sheet_name=summary_sheet_name, index=False)
 
     # Auto-adjust column widths
     ex.auto_adjust_column_widths(writer, assess_pd, assess_sheet_name)
+    ex.auto_adjust_column_widths(writer, metrics_pd, metrics_sheet_name)
     ex.auto_adjust_column_widths(writer, grade_pd, grade_sheet_name)
     ex.auto_adjust_column_widths(writer, summary_pd, summary_sheet_name)
 
@@ -271,13 +292,13 @@ def main():
     objectives_filename = "./OBJECTIVES/CS_OBJECTIVES.xlsx"
 
     # Generate assessment file
-    all_data_pd, grade_pd, summary_pd = create_assessment_sheets(   year_semester_list,                                                        
+    all_data_pd, metrics_pd, grade_pd, summary_pd = create_assessment_sheets(   year_semester_list,                                                        
                                                                     objectives_filename,
                                                                     username,
                                                                     password)
     
     # Save assessment file
-    save_assessment_sheets(year_semester_list, all_data_pd, grade_pd, summary_pd)    
+    save_assessment_sheets(year_semester_list, all_data_pd, metrics_pd, grade_pd, summary_pd)    
         
 if __name__ == "__main__":
     main()
